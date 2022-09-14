@@ -1,9 +1,10 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, make_response, render_template
 import os
 import redis
 import socket
 from multiprocessing import Pool, cpu_count
 import time
+import uuid
 
 
 app = Flask(__name__)
@@ -36,6 +37,8 @@ if redis_tls == 'ON':
 else:
     redis_port = 6379
     redis_tls = False
+
+hostn = os.environ.get('HOSTNAME', str(uuid.uuid4()))
 
 # Redis Connection
 try:
@@ -72,29 +75,18 @@ def f(x):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-
     if request.method == 'GET':
-
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
         vote2 = r.get(button2).decode('utf-8')
-
-        # Return index with values
-        return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
-
     elif request.method == 'POST':
-
         if request.form['vote'] == 'reset':
-
             # Empty table and return results
             r.set(button1, 0)
             r.set(button2, 0)
             vote1 = r.get(button1).decode('utf-8')
             vote2 = r.get(button2).decode('utf-8')
-            return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
-
         else:
-
             # Insert vote result into DB
             vote = request.form['vote']
             r.incr(vote, 1)
@@ -108,8 +100,9 @@ def index():
             pool = Pool(processes)
             pool.map(f, range(processes))
 
-            # Return results
-            return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
+    resp = make_response(render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title))
+    resp.headers.set('X-HANDLED-BY', hostn)
+    return resp
 
 
 if __name__ == "__main__":
