@@ -27,12 +27,21 @@ else:
 
 # Redis configurations
 redis_server = os.environ['REDIS']
+redis_tls =  os.environ.get('REDIS_TLS', 'OFF')
+
+if redis_tls == 'ON':
+    redis_port = 6380
+    redis_tls = True
+else:
+    redis_port = 6379
+    redis_tls = False
 
 # Redis Connection
 try:
     if "REDIS_PWD" in os.environ:
         r = redis.StrictRedis(host=redis_server,
-                        port=6379,
+                        port=redis_port,
+                        ssl=redis_tls,
                         password=os.environ['REDIS_PWD'])
     else:
         r = redis.Redis(redis_server)
