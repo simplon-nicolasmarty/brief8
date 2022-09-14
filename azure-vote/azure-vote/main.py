@@ -1,9 +1,10 @@
 from flask import Flask, request, render_template
 import os
-import random
 import redis
 import socket
-import sys
+from multiprocessing import Pool, cpu_count
+import time
+
 
 app = Flask(__name__)
 
@@ -27,7 +28,7 @@ else:
 
 # Redis configurations
 redis_server = os.environ['REDIS']
-redis_tls =  os.environ.get('REDIS_TLS', 'OFF')
+redis_tls = os.environ.get('REDIS_TLS', 'OFF')
 
 if redis_tls == 'ON':
     redis_port = 6380
@@ -40,9 +41,9 @@ else:
 try:
     if "REDIS_PWD" in os.environ:
         r = redis.StrictRedis(host=redis_server,
-                        port=redis_port,
-                        ssl=redis_tls,
-                        password=os.environ['REDIS_PWD'])
+                              port=redis_port,
+                              ssl=redis_tls,
+                              password=os.environ['REDIS_PWD'])
     else:
         r = redis.Redis(redis_server)
     r.ping()
@@ -54,8 +55,20 @@ if app.config['SHOWHOST'] == "true":
     title = socket.gethostname()
 
 # Init Redis
-if not r.get(button1): r.set(button1,0)
-if not r.get(button2): r.set(button2,0)
+if not r.get(button1):
+    r.set(button1, 0)
+if not r.get(button2):
+    r.set(button2, 0)
+
+
+def f(x):
+    set_time = os.environ.get('STRESS_SECS', 5)
+    timeout = time.time() + float(set_time)  # X seconds from now
+    while True:
+        if time.time() > timeout:
+            break
+        x * x
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -64,7 +77,7 @@ def index():
 
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
-        vote2 = r.get(button2).decode('utf-8')            
+        vote2 = r.get(button2).decode('utf-8')
 
         # Return index with values
         return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
@@ -72,26 +85,32 @@ def index():
     elif request.method == 'POST':
 
         if request.form['vote'] == 'reset':
-            
+
             # Empty table and return results
-            r.set(button1,0)
-            r.set(button2,0)
+            r.set(button1, 0)
+            r.set(button2, 0)
             vote1 = r.get(button1).decode('utf-8')
             vote2 = r.get(button2).decode('utf-8')
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
-        
+
         else:
 
             # Insert vote result into DB
             vote = request.form['vote']
-            r.incr(vote,1)
-            
+            r.incr(vote, 1)
+
             # Get current values
             vote1 = r.get(button1).decode('utf-8')
-            vote2 = r.get(button2).decode('utf-8')  
-                
+            vote2 = r.get(button2).decode('utf-8')
+
+            # Generate fake load
+            processes = cpu_count()
+            pool = Pool(processes)
+            pool.map(f, range(processes))
+
             # Return results
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
+
 
 if __name__ == "__main__":
     app.run()
