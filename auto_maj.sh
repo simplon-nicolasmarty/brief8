@@ -9,11 +9,7 @@ PATCH=$(ag --nonumbers '^ver =' azure-vote/main.py | sed -re 's/ver = "1\.0\.([0
 while true; do
     PATCH=$((PATCH+1))
     sed -i -re "s/(ver = \"1\.0\.).(.*)$/\1${PATCH}\2/" azure-vote/main.py
-    TAG="simplonasa/azure_voting_app:v1.0.${PATCH}"
-    docker build -t ${TAG} .
-    docker push ${TAG}
-    docker rmi ${TAG}
-    sleep 1h
+    git commit -a -m "new vers" && git push
 done
 
 exit 0
