@@ -4,7 +4,7 @@
 
 set -e
 
-PATCH=$(ag --nonumbers '^ver =' azure-vote/main.py | sed -re 's/ver = "1\.0\.(.)"/\1/')
+PATCH=$(ag --nonumbers '^ver =' azure-vote/main.py | sed -re 's/ver = "1\.0\.([0-9]+)"/\1/')
 
 while true; do
     PATCH=$((PATCH+1))
