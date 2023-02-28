@@ -9,6 +9,12 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  dockerRegistryServiceConnection: 'ConnectDockerHub'
+  imageRepository: 'k8b8nm'
+  containerRegistry: 'nemesys34'
+  imageTag: '$(Build.BuildId)'
+
 - task: Docker@2
   inputs:
     containerRegistry: 'ConnectDockerHub'
@@ -49,7 +55,7 @@ pool:
               app: <nom-de-l'application-Kubernetes>
           spec:
             containers:
-            - name: <nom-du-conteneur-Kubernetes>
+            - name: K8B8NM
               image: $(containerRegistry)/$(imageRepository):$(imageTag)
               ports:
               - containerPort: 80
