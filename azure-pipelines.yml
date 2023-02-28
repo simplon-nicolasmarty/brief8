@@ -14,7 +14,7 @@ variables:
   imageRepository: 'k8b8nm'
   containerRegistry: 'nemesys34'
   imageTag: '$(Build.BuildId)'
-
+steps:
 - task: Docker@2
   inputs:
     containerRegistry: 'ConnectDockerHub'
