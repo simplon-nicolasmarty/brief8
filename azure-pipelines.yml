@@ -41,18 +41,18 @@ variables:
       apiVersion: apps/v1
       kind: Deployment
       metadata:
-        name: <nom-du-déploiement-Kubernetes>
+        name: voteapp
         labels:
-          app: <nom-de-l'application-Kubernetes>
+          app: voteapp
       spec:
         replicas: 3
         selector:
           matchLabels:
-            app: <nom-de-l'application-Kubernetes>
+            app: voteapp
         template:
           metadata:
             labels:
-              app: <nom-de-l'application-Kubernetes>
+              app: voteapp
           spec:
             containers:
             - name: K8B8NM
