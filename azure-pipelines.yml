@@ -1,0 +1,53 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  dockerRegistryServiceConnection: 'ConnectDockerHub'
+  imageRepository: '<nom-du-repository-DockerHub>'
+  containerRegistry: '<registry-DockerHub>'
+  imageTag: '$(Build.BuildId)'
+
+steps:
+- script: |
+    docker build -f Dockerfile -t $(containerRegistry)/$(imageRepository):$(imageTag) .
+    docker login -u $(dockerRegistryServiceConnection.username) -p $(dockerRegistryServiceConnection.password) $(dockerRegistryServiceConnection.loginServer)
+    docker push $(containerRegistry)/$(imageRepository):$(imageTag)
+  displayName: 'Build and Push Docker Image'
+
+- task: KubernetesManifest@0
+  inputs:
+    action: 'deploy'
+    kubernetesServiceConnection: 'K8B8NM-qal'
+    namespace: '<nom-de-l'espace-de-nom-Kubernetes>'
+    manifests: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: <nom-du-déploiement-Kubernetes>
+        labels:
+          app: <nom-de-l'application-Kubernetes>
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: <nom-de-l'application-Kubernetes>
+        template:
+          metadata:
+            labels:
+              app: <nom-de-l'application-Kubernetes>
+          spec:
+            containers:
+            - name: <nom-du-conteneur-Kubernetes>
+              image: $(containerRegistry)/$(imageRepository):$(imageTag)
+              ports:
+              - containerPort: 80
+  displayName: 'Deploy to AKS'
+
