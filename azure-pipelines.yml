@@ -19,8 +19,8 @@ pool:
 - task: Kubernetes@1
   inputs:
     connectionType: 'Kubernetes Service Connection'
-    kubernetesServiceEndpoint: 'Nicolas-AKS-k8s'
-    namespace: 'default'
+    kubernetesServiceEndpoint: 'K8B8NM-qal'
+    namespace: 'qal'
     command: 'get'
     arguments: 'deployments'
     outputFormat: 'json'
