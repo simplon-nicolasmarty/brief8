@@ -55,7 +55,7 @@ steps:
     action: 'deploy'
     kubernetesServiceConnection: 'connectK8SNM'
     namespace: 'qal'
-    strategy: 'canary'
-    percentage: '10'
+#    strategy: 'canary'
+#    percentage: '10'
     manifests: manifest/vote-app.yml
   displayName: 'Deploy to AKS'
