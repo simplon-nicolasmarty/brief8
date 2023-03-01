@@ -19,6 +19,13 @@ variables:
 
 steps:
 
+- task: Docker@2
+  inputs:
+    containerRegistry: 'ConnectDockerHub'
+    repository: 'nemesys34/k8b8nm'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+
 - task: Kubernetes@1
   inputs:
     connectionType: 'Kubernetes Service Connection'
