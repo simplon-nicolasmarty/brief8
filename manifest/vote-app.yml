@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voteapp
+  labels:
+    app: vote-app
+spec:
+  selector:
+    matchLabels:
+      app: vote-app
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: vote-app
+    spec:
+      containers:
+      - name: voteapp
+        image: simplonasa/azure_voting_app:{{ version }}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 250m
+          limits:
+            cpu: 500m
+        env:
+        - name: REDIS
+          value: "clusteredis"
+        - name: STRESS_SECS
+          value: "2"
+        - name: REDIS_PWD
+          valueFrom:
+            secretKeyRef:
+              name: redispwd
+              key: nm-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voteapp
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+  selector:
+    app: vote-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: redis-bd
+spec:
+  selector:
+    matchLabels:
+      app: redis-bd
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis-bd
+    spec:
+      volumes: 
+      - name: redis-vol
+        persistentVolumeClaim:
+          claimName: nm-vol
+      containers:
+      - name: redis
+        image: redis
+        args: ["--requirepass","$(REDIS_PWD)"]
+        env:
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "no"
+        - name: REDIS_PWD
+          valueFrom:
+            secretKeyRef:
+              name: redispwd
+              key: nm-password
+        ports:
+        - containerPort: 6379
+          name: redis
+        volumeMounts:
+        - name: redis-vol
+          mountPath: "/data"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clusteredis
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+  selector:
+    app: redis-bd
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingressvote
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+spec:
+  tls:
+    - secretName: test-tls
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: voteapp
+            port:
+              number: 80
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: scaleapp
+spec:
+  maxReplicas: 8
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voteapp
+  targetCPUUtilizationPercentage: 70
