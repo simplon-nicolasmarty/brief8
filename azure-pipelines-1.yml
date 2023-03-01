@@ -19,12 +19,7 @@ variables:
 
 steps:
 
-- task: Docker@2
-  inputs:
-    containerRegistry: 'ConnectDockerHub'
-    repository: 'nemesys34/k8b8nm'
-    command: 'buildAndPush'
-    Dockerfile: '**/Dockerfile'
+
 
 - task: Kubernetes@1
   inputs:
@@ -48,18 +43,19 @@ steps:
       sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
 
 - task: Docker@2
-  condition: ne(variables['verrep'],variables['vernew'])
   inputs:
-    containerRegistry: $(containerRegistry)
-    repository: $(repository)
+    containerRegistry: 'ConnectDockerHub'
+    repository: 'nemesys34/k8b8nm'
     command: 'buildAndPush'
     Dockerfile: '**/Dockerfile'
     tags: $(vernew)
 
 - task: KubernetesManifest@0
-  condition: ne(variables['verold'],variables['verrep'])
   inputs:
     action: 'deploy'
-    kubernetesServiceConnection: $(kubernetesServiceEndpoint)
+    kubernetesServiceConnection: 'connectK8SNM'
     namespace: 'qal'
-    manifests: '**/kube_brief6/*'
+    strategy: 'canary'
+    percentage: '10'
+    manifests: manifest/vote-app.yml
+  displayName: 'Deploy to AKS'
