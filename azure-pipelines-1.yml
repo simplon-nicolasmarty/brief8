@@ -27,14 +27,14 @@ steps:
     tags: '$(Build.BuildNumber)'
     arguments: '--build-arg IMAGE_REPOSITORY=$(imageRepository)'
   displayName: 'Construction et envoi de l\'image Docker'
-  
+
 - task: KubernetesManifest@0
   inputs:
     action: 'deploy'
     kubernetesServiceConnection: $(kubernetesServiceEndpoint)
-    namespace: 'default'
-    manifests: '$(System.DefaultWorkingDirectory)/k8b8nm.yml'
+    namespace: 'qal'
+    manifests: '$(System.DefaultWorkingDirectory)/azure-pipelines-1.yml'
     command: 'apply'
-    arguments: '--namespace=default'
+    arguments: '--namespace=qal'
   displayName: 'Déploiement sur le cluster Kubernetes'
   condition: succeeded('Docker@2')
