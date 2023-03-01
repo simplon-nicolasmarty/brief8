@@ -63,9 +63,9 @@ spec:
         app: redis-bd
     spec:
       volumes: 
-      - name: redis-vol
+      - name: redisvol
         persistentVolumeClaim:
-          claimName: nm-vol
+          claimName: redisclaim
       containers:
       - name: redis
         image: redis
@@ -82,7 +82,7 @@ spec:
         - containerPort: 6379
           name: redis
         volumeMounts:
-        - name: redis-vol
+        - name: redisvol
           mountPath: "/data"
 ---
 apiVersion: v1
@@ -103,8 +103,6 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
 spec:
-  tls:
-    - secretName: test-tls
   rules:
   - http:
       paths:
