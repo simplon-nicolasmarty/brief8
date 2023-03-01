@@ -32,7 +32,7 @@ spec:
         - name: REDIS_PWD
           valueFrom:
             secretKeyRef:
-              name: redispwd
+              name: redis-pw
               key: nm-password
 ---
 apiVersion: v1
@@ -76,7 +76,7 @@ spec:
         - name: REDIS_PWD
           valueFrom:
             secretKeyRef:
-              name: redispwd
+              name: redis-pw
               key: nm-password
         ports:
         - containerPort: 6379
