@@ -1,40 +1,58 @@
-# Définition des variables
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-latest
+
 variables:
   dockerRegistryServiceConnection: 'ConnectDockerHub'
   imageRepository: 'k8b8nm'
   containerRegistry: 'nemesys34'
   repository: 'nemesys34/k8b8nm'
   kubernetesServiceEndpoint: 'connectK8SNM'
-  clusterName: 'K8B8NM'
+  aksClusterName: 'K8B8NM'
 
-# Déclencheur
-trigger:
-- master
-
-# Définition du pool d'agents
-pool:
-  vmImage: ubuntu-latest
-
-# Étapes du pipeline
 steps:
 
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+    namespace: 'qal'
+    command: 'get'
+    arguments: 'deployments'
+    secretType: 'dockerRegistry'
+    containerRegistryType: 'Azure Container Registry'
+  name: 'kube'
+
+- task: CmdLine@2
+  inputs:
+    script: |
+      versionrep=$(curl -sS 'https://hub.docker.com/v2/repositories/$(repository)/tags' | jq -r '."results"[0]["name"]')
+      versionold=$(echo $KUBE_KUBECTLOUTPUT | jq '.items[1].spec.template.spec.containers[].image' | cut -d: -f2 | sed 's/"//')
+      versionnew=$(cat azure-vote/main.py | grep -E "^ver = \"[0-9.]+\"\$"|awk -F\" {'print $2'})
+      echo "##vso[task.setvariable variable=vernew]$versionnew"
+      echo "##vso[task.setvariable variable=verrep]$versionrep"
+      sed -i 's/{{ version }}/'$versionnew'/g' kube_brief6/voteapp.yml
+
 - task: Docker@2
+  condition: ne(variables['verrep'],variables['vernew'])
   inputs:
     containerRegistry: $(containerRegistry)
     repository: $(repository)
     command: 'buildAndPush'
     Dockerfile: '**/Dockerfile'
-    tags: '$(Build.BuildNumber)'
-    arguments: '--build-arg IMAGE_REPOSITORY=$(imageRepository)'
-  displayName: 'Construction et envoi de l\'image Docker'
+    tags: $(vernew)
 
 - task: KubernetesManifest@0
+  condition: ne(variables['verold'],variables['verrep'])
   inputs:
     action: 'deploy'
     kubernetesServiceConnection: $(kubernetesServiceEndpoint)
     namespace: 'qal'
-    manifests: '$(System.DefaultWorkingDirectory)/azure-pipelines-1.yml'
-    command: 'apply'
-    arguments: '--namespace=qal'
-  displayName: 'Déploiement sur le cluster Kubernetes'
-  condition: succeeded('Docker@2')
+    manifests: '**/kube_brief6/*'
