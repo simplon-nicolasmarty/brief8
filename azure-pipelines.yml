@@ -69,19 +69,13 @@ steps:
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace en canary 10 sur PROD'
 
-jobs:
-- job: waitForValidation
-  displayName: Wait for external validation
-  pool: server
-  timeoutInMinutes: 4320 # job times out in 3 days
-  steps:
-  - task: ManualValidation@0
-    timeoutInMinutes: 1440 # task times out in 1 day
-    inputs:
-      notifyUsers: |
-        simplon.nicolasmarty@gmail.com
-      instructions: 'Please validate the build configuration and resume'
-      onTimeout: 'resume'
+- task: ManualValidation@0
+  timeoutInMinutes: 1440 # task times out in 1 day
+  inputs:
+    notifyUsers: |
+      simplon.nicolasmarty@gmail.com
+    instructions: 'Please validate the build configuration and resume'
+    onTimeout: 'resume'
   
 - task: Kubernetes@1
   inputs:
