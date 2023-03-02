@@ -69,13 +69,16 @@ steps:
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace en canary 10 sur PROD'
 
-- task: ManualValidation@0
+- job: validate_build
+  dependsOn: deploy_and_validate
   timeoutInMinutes: 1440 # task times out in 1 day
-  inputs:
-    notifyUsers: |
-      simplon.nicolasmarty@gmail.com
-    instructions: 'Please validate the build configuration and resume'
-    onTimeout: 'resume'
+  steps:
+  - task: ManualValidation@0
+    inputs:
+      notifyUsers: |
+        simplon.nicolasmarty@gmail.com
+      instructions: 'Please validate the build configuration and resume'
+      onTimeout: 'resume'
   
 - task: Kubernetes@1
   inputs:
