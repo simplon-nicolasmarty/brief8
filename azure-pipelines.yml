@@ -41,7 +41,8 @@ steps:
       echo "##vso[task.setvariable variable=vernew]$versionnew"
       echo "##vso[task.setvariable variable=verrep]$versionrep"
       sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
-
+      sed -i "s/  - port: [[:digit:]]\{2\}/  - port: 85/g" manifest/vote-app.yml
+      sed -i "s/              number: [[:digit:]]\{2\}/              number: 85/g" manifest/vote-app.yml
 - task: Docker@2
   inputs:
     containerRegistry: 'ConnectDockerHub'
