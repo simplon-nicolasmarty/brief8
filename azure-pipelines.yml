@@ -55,4 +55,15 @@ steps:
     namespace: 'qal'
     manifests: manifest/vote-app.yml
   condition: ne(variables['verold'], variables['verrep'])
-  displayName: 'Déploiement sur AKS'
+  displayName: 'Déploiement sur namespace QAL'
+
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+    namespace: 'prod'
+    command: 'apply'
+    arguments: '-f manifest/vote-app.yml'
+    secretType: 'dockerRegistry'
+    containerRegistryType: 'Azure Container Registry'
+  displayName: 'Déploiement sur namespace PROD'
