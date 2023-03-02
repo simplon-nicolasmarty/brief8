@@ -1,4 +1,3 @@
-
 trigger:
 - master
 
@@ -30,7 +29,7 @@ steps:
   inputs:
     targetType: 'inline'
     script: |
-      versionrep=$(curl -sS "https://hub.docker.com/v2/repositories/$(repository)/tags" | jq -r '."results"[0]["name"]')
+      versionrep=$(curl -sS "https://hub.docker.com/v2/repositories/$(imageRepository)/tags" | jq -r '."results"[0]["name"]')
       versionold=$(echo $KUBE_KUBECTLOUTPUT | jq '.items[1].spec.template.spec.containers[].image' | cut -d: -f2 | sed 's/"//')
       versionnew=$(awk -F\" '/^ver = "[0-9.]+"/{print $2}' azure-vote/main.py)
       echo "##vso[task.setvariable variable=vernew]$versionnew"
@@ -54,7 +53,7 @@ steps:
     kubernetesServiceConnection: $(kubernetesServiceEndpoint)
     namespace: 'qal'
     manifests: manifest/vote-app.yml
-  condition: ne(variables['verold'], variables['verrep'])
+  condition: ne(variables['verold'], variables['vernew'])
   displayName: 'Déploiement sur namespace QAL'
 
 - task: Kubernetes@1
@@ -69,7 +68,7 @@ steps:
     secretType: 'dockerRegistry'
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace en canary 10 sur PROD'
-  
+
 jobs:
 - job: waitForValidation
   displayName: Wait for external validation
