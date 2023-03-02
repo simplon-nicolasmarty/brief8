@@ -62,8 +62,27 @@ steps:
     connectionType: 'Kubernetes Service Connection'
     kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
     namespace: 'prod'
+    strategy: 'canary'
+    percentage: '10'
     command: 'apply'
     arguments: '-f manifest/vote-app.yml'
     secretType: 'dockerRegistry'
     containerRegistryType: 'Azure Container Registry'
-  displayName: 'Déploiement sur namespace PROD'
+  displayName: 'Déploiement sur namespace en canary 10 sur PROD'
+
+- task: Input@1
+  inputs:
+    message: 'Appuyez sur Entrée pour déployer en production'
+    required: true
+  displayName: 'Attente d\'une action utilisateur'
+
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+    namespace: 'prod'
+    command: 'apply'
+    arguments: '-f manifest/vote-app.yml'
+    secretType: 'dockerRegistry'
+    containerRegistryType: 'Azure Container Registry'
+  displayName: 'Déploiement sur namespace PROD GA'
