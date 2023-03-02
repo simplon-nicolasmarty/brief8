@@ -70,7 +70,6 @@ steps:
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace en canary 10 sur PROD'
 
-jobs:
 - job: waitForValidation
   displayName: Wait for external validation
   pool: server
