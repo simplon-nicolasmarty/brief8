@@ -74,8 +74,8 @@ steps:
   inputs:
     message: 'Appuyez sur Entrée pour déployer en production'
     required: true
-  displayName: 'Attente d\'une action utilisateur'
-
+  displayName: "Attente d'une action utilisateur"
+  
 - task: Kubernetes@1
   inputs:
     connectionType: 'Kubernetes Service Connection'
