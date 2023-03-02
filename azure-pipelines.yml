@@ -76,7 +76,7 @@ steps:
     required: true
   displayName: 'Attente d\'une action utilisateur'
 
-- task: Kubernetes@1
+- task: Kubernetes@2
   inputs:
     connectionType: 'Kubernetes Service Connection'
     kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
