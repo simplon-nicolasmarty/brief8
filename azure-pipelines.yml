@@ -86,3 +86,4 @@ steps:
     secretType: 'dockerRegistry'
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace PROD GA'
+  condition: succeeded('Attente d\'une action utilisateur')
