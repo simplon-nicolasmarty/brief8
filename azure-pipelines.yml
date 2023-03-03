@@ -117,4 +117,4 @@ stages:
                         secretType: dockerRegistry
                         containerRegistryType: Azure Container Registry
                       displayName: Déploiement en PROD
-                      condition: succeeded('Attente d\'une action utilisateur')
+                  condition: succeeded('Attente d\'une action utilisateur')
