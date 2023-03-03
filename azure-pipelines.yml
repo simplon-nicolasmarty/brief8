@@ -59,7 +59,7 @@ stages:
 - stage: Test
   jobs:
   - job: DeployToQAL
-    displayName: Deploy to QAL
+    displayName: Déploiement sur namespace QAL
     steps:
     - task: KubernetesManifest@0
       inputs:
@@ -74,7 +74,7 @@ stages:
   dependsOn: Test
   jobs:
   - job: DeployToCanary
-    displayName: Deploy to Canary
+    displayName: Déploiement sur namespace en canary 10 sur PROD
     steps:
     - task: Kubernetes@1
       inputs:
@@ -117,4 +117,4 @@ stages:
                         secretType: dockerRegistry
                         containerRegistryType: Azure Container Registry
                       displayName: Déploiement en PROD
-                  condition: succeeded('Attente d\'une action utilisateur')
+                      condition: succeeded('Attente d\'une action utilisateur')
