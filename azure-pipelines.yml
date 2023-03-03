@@ -10,7 +10,8 @@ variables:
   repository: nemesys34/k8b8nm
   kubernetesServiceEndpoint: connectK8SNM
   aksClusterName: K8B8NM
-steps:
+stages:
+  - stage: docker
   - task: Kubernetes@1
     inputs:
       connectionType: Kubernetes Service Connection
@@ -48,7 +49,7 @@ steps:
       tags: $(vernew)
     condition: ne(variables['verrep'], variables['vernew'])
     displayName: Build et Push
-stages:
+
   - stage: Test
   - task: KubernetesManifest@0
     inputs:
