@@ -107,14 +107,14 @@ stages:
                     instructions: Please verify the deployment and click Approve or Reject
                     timeoutInMinutes: 1440
                   displayName: Manual intervention
-                - task: Kubernetes@1
-                  inputs:
-                    connectionType: Kubernetes Service Connection
-                    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
-                    namespace: prod
-                    command: apply
-                    arguments: -f manifest/vote-app.yml
-                    secretType: dockerRegistry
-                    containerRegistryType: Azure Container Registry
-                  displayName: Déploiement sur namespace PROD GA
+                    - task: Kubernetes@1
+                      inputs:
+                        connectionType: Kubernetes Service Connection
+                        kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                        namespace: prod
+                        command: apply
+                        arguments: -f manifest/vote-app.yml
+                        secretType: dockerRegistry
+                        containerRegistryType: Azure Container Registry
+                      displayName: Déploiement en PROD
                   condition: succeeded('Attente d\'une action utilisateur')
