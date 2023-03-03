@@ -1,8 +1,9 @@
----
 trigger:
   - master
+
 pool:
   vmImage: ubuntu-latest
+
 variables:
   dockerRegistryServiceConnection: ConnectDockerHub
   imageRepository: k8b8nm
@@ -10,95 +11,110 @@ variables:
   repository: nemesys34/k8b8nm
   kubernetesServiceEndpoint: connectK8SNM
   aksClusterName: K8B8NM
+
 stages:
-  - stage: docker
-  - task: Kubernetes@1
-    inputs:
-      connectionType: Kubernetes Service Connection
-      kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
-      namespace: qal
-      command: get
-      arguments: deployments
-      secretType: dockerRegistry
-      containerRegistryType: Azure Container Registry
-    name: kube
-  - task: Bash@3
-    inputs:
-      targetType: inline
-      script: >
-        versionrep=$(curl -sS
-        "https://hub.docker.com/v2/repositories/$(imageRepository)/tags" | jq -r
-        '."results"[0]["name"]')
+- stage: docker
+  jobs:
+  - job: BuildAndPush
+    displayName: Build and push
+    steps:
+    - task: Kubernetes@1
+      inputs:
+        connectionType: Kubernetes Service Connection
+        kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+        namespace: qal
+        command: get
+        arguments: deployments
+        secretType: dockerRegistry
+        containerRegistryType: Azure Container Registry
+      name: kube
 
-        versionold=$(echo $KUBE_KUBECTLOUTPUT | jq '.items[1].spec.template.spec.containers[].image' | cut -d: -f2 | sed 's/"//')
+    - task: Bash@3
+      inputs:
+        targetType: inline
+        script: |
+          versionrep=$(curl -sS "https://hub.docker.com/v2/repositories/$(imageRepository)/tags" | jq -r '."results"[0]["name"]')
 
-        versionnew=$(awk -F\" '/^ver = "[0-9.]+"/{print $2}' azure-vote/main.py)
+          versionold=$(echo $KUBE_KUBECTLOUTPUT | jq '.items[1].spec.template.spec.containers[].image' | cut -d: -f2 | sed 's/"//')
 
-        echo "##vso[task.setvariable variable=vernew]$versionnew"
+          versionnew=$(awk -F\" '/^ver = "[0-9.]+"/{print $2}' azure-vote/main.py)
 
-        echo "##vso[task.setvariable variable=verrep]$versionrep"
+          echo "##vso[task.setvariable variable=vernew]$versionnew"
 
-        sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
-    displayName: Mise à jour des versions
-  - task: Docker@2
-    inputs:
-      containerRegistry: $(dockerRegistryServiceConnection)
-      repository: $(repository)
-      command: buildAndPush
-      Dockerfile: "**/Dockerfile"
-      tags: $(vernew)
-    condition: ne(variables['verrep'], variables['vernew'])
-    displayName: Build et Push
+          echo "##vso[task.setvariable variable=verrep]$versionrep"
 
-  - stage: Test
-  - task: KubernetesManifest@0
-    inputs:
-      action: deploy
-      kubernetesServiceConnection: $(kubernetesServiceEndpoint)
-      namespace: qal
-      manifests: manifest/vote-app.yml
-    condition: ne(variables['verold'], variables['vernew'])
-    displayName: Déploiement sur namespace QAL
-  - stage: Canary
-    dependsOn: Test
-  - task: Kubernetes@1
-    inputs:
-      connectionType: Kubernetes Service Connection
-      kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
-      namespace: prod
-      strategy: canary
-      percentage: "10"
-      command: apply
-      arguments: -f manifest/vote-app.yml
-      secretType: dockerRegistry
-      containerRegistryType: Azure Container Registry
-    displayName: Déploiement sur namespace en canary 10 sur PROD
-  - stage: Global
-    displayName: Global deployment
-    jobs:
-      - deployment: DeployGlobal
-        displayName: DeployGlobal
-        environment: production
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - script: |
-                    echo "Deploiment en production."
+          sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
+      displayName: Mise à jour des versions
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(repository)
+        command: buildAndPush
+        Dockerfile: "**/Dockerfile"
+        tags: $(vernew)
+      condition: ne(variables['verrep'], variables['vernew'])
+      displayName: Build et Push
+
+- stage: Test
+  jobs:
+  - job: DeployToQAL
+    displayName: Deploy to QAL
+    steps:
+    - task: KubernetesManifest@0
+      inputs:
+        action: deploy
+        kubernetesServiceConnection: $(kubernetesServiceEndpoint)
+        namespace: qal
+        manifests: manifest/vote-app.yml
+      condition: ne(variables['verold'], variables['vernew'])
+      displayName: Déploiement sur namespace QAL
+
+- stage: Canary
+  dependsOn: Test
+  jobs:
+  - job: DeployToCanary
+    displayName: Deploy to Canary
+    steps:
+    - task: Kubernetes@1
+      inputs:
+        connectionType: Kubernetes Service Connection
+        kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+        namespace: prod
+        strategy: canary
+        percentage: "10"
+        command: apply
+        arguments: -f manifest/vote-app.yml
+        secretType: dockerRegistry
+        containerRegistryType: Azure Container Registry
+      displayName: Déploiement sur namespace en canary 10 sur PROD
+
+- stage: Global
+  displayName: Global deployment
+  jobs:
+  - deployment: DeployGlobal
+    displayName: DeployGlobal
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              echo "Deploiment en production."
                   displayName: Deploiement production
                 - task: ManualIntervention@1
                   inputs:
                     instructions: Please verify the deployment and click Approve or Reject
                     timeoutInMinutes: 1440
                   displayName: Manual intervention
-      - task: Kubernetes@1
-        inputs:
-          connectionType: Kubernetes Service Connection
-          kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
-          namespace: prod
-          command: apply
-          arguments: -f manifest/vote-app.yml
-          secretType: dockerRegistry
-          containerRegistryType: Azure Container Registry
-        displayName: Déploiement sur namespace PROD GA
-        condition: succeeded('Attente d\'une action utilisateur')
+                - task: Kubernetes@1
+                  inputs:
+                    connectionType: Kubernetes Service Connection
+                    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                    namespace: prod
+                    command: apply
+                    arguments: -f manifest/vote-app.yml
+                    secretType: dockerRegistry
+                    containerRegistryType: Azure Container Registry
+                  displayName: Déploiement sur namespace PROD GA
+                  condition: succeeded('Attente d\'une action utilisateur')
