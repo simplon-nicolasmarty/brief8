@@ -47,6 +47,8 @@ steps:
   condition: ne(variables['verrep'], variables['vernew'])
   displayName: 'Build et Push'
 
+stages:
+- stage: Test
 - task: KubernetesManifest@0
   inputs:
     action: 'deploy'
@@ -56,6 +58,8 @@ steps:
   condition: ne(variables['verold'], variables['vernew'])
   displayName: 'Déploiement sur namespace QAL'
 
+- stage: Canary
+  dependsOn: Test
 - task: Kubernetes@1
   inputs:
     connectionType: 'Kubernetes Service Connection'
@@ -69,25 +73,32 @@ steps:
     containerRegistryType: 'Azure Container Registry'
   displayName: 'Déploiement sur namespace en canary 10 sur PROD'
 
-- job: validate_build
-  dependsOn: deploy_and_validate
-  timeoutInMinutes: 1440 # task times out in 1 day
-  steps:
-  - task: ManualValidation@0
+- stage: Global
+  displayName: Global deployment
+  jobs:
+  - deployment: DeployGlobal
+    displayName: DeployGlobal
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              echo "Deploiment en production."
+            displayName: Deploiement production
+          - task: ManualIntervention@1
+            inputs:
+              instructions: 'Please verify the deployment and click Approve or Reject'
+              timeoutInMinutes: 1440
+            displayName: 'Manual intervention'
+  - task: Kubernetes@1
     inputs:
-      notifyUsers: |
-        simplon.nicolasmarty@gmail.com
-      instructions: 'Please validate the build configuration and resume'
-      onTimeout: 'resume'
-  
-- task: Kubernetes@1
-  inputs:
-    connectionType: 'Kubernetes Service Connection'
-    kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
-    namespace: 'prod'
-    command: 'apply'
-    arguments: '-f manifest/vote-app.yml'
-    secretType: 'dockerRegistry'
-    containerRegistryType: 'Azure Container Registry'
-  displayName: 'Déploiement sur namespace PROD GA'
-  condition: succeeded('Attente d\'une action utilisateur')
+      connectionType: 'Kubernetes Service Connection'
+      kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+      namespace: 'prod'
+      command: 'apply'
+      arguments: '-f manifest/vote-app.yml'
+      secretType: 'dockerRegistry'
+      containerRegistryType: 'Azure Container Registry'
+    displayName: 'Déploiement sur namespace PROD GA'
+    condition: succeeded('Attente d\'une action utilisateur')
