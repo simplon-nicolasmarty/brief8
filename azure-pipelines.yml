@@ -68,12 +68,21 @@ stages:
     steps:
     - task: KubernetesManifest@0
       name: kubeonqal
-      displayName: Deploy on QAL
+      displayName: Deploy ressources on QAL
       inputs:
         action: 'deploy'
         kubernetesServiceConnection: $(kubernetesServiceEndpoint)
         namespace: 'qal'
-        manifests: '**/kubernetes/qal/*'
+        manifests: manifest/vote-app.yml
+    - task: KubernetesManifest@0
+      name: kubemanifest
+      displayName: Deploy manifest on QAL
+      inputs:
+        action: deploy
+        kubernetesServiceConnection: $(kubernetesServiceEndpoint)
+        namespace: qal
+        manifests: manifest/vote-app.yml
+      condition: ne(variables['verold'], variables['vernew'])
     - task: Bash@3
       name: waitingfordeploy
       inputs:
@@ -102,15 +111,15 @@ stages:
         namespace: 'qal'
         command: 'get'
         useConfigurationFile: true
-        configuration: './kubernetes/qal/qal_app.yml'
+        configuration: manifest/vote-app.yml
       name: qalpods
     - task: CmdLine@2
       name: countpod
       inputs:
         script: |
-          qalappcount=$(echo $QALPODS_KUBECTLOUTPUT | jq '.items[0].spec.replicas')
-          echo $qalappcount
-          echo "##vso[task.setvariable variable=countpods]$qalappcount"
+          pod_count=$(echo $QALPODS_KUBECTLOUTPUT | jq '.items[0].spec.replicas')
+          echo $pod_count
+          echo "##vso[task.setvariable variable=countpods]$pod_count"
 
     - task: Kubernetes@1
       name: deleteqal
@@ -120,7 +129,7 @@ stages:
         kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
         namespace: 'qal'
         command: 'delete'
-        arguments: '-f $(System.DefaultWorkingDirectory)/kubernetes/qal/'
+        arguments: -f manifest/vote-app.yml
 
     - task: Bash@3
       name: yourverygood
@@ -147,24 +156,31 @@ stages:
       namespace: 'prod'
       strategy: 'canary'
       percentage: '30'
-      manifests: '**/kubernetes/canary/deployment-canary.yaml'
+      manifests: manifest/vote-app.yml
 
-- stage: 'ManualIntervention'
-  condition: succeeded()
-  displayName: 'In waiting of validation of working canary release'
+- stage: 'Manual Intervention'
+  displayName: 'Wait for validation of working canary release'
+  condition: |
+    and(
+      eq(variables['Release.EnvironmentName'], 'canary'),
+      eq(variables['Release.Reason'], 'Manual')
+    )
   jobs:
   - job: 'waitForValidation'
-    displayName: Wait for external validation
-    pool: server
+    displayName: 'Wait for external validation before proceeding'
+    pool:
+      vmImage: 'ubuntu-latest'
     timeoutInMinutes: 4320 # job times out in 3 days
     steps:
     - task: ManualValidation@0
       timeoutInMinutes: 1440 # task times out in 1 day
       inputs:
-      notifyUsers: |
-      simplon.nicolasmarty@gmail.com
-      instructions: 'Please validate the build configuration and resume'
-      onTimeout: 'resume'
+        notifyUsers: 'simplon.nicolasmarty@gmail.com'
+        instructions: 'Please validate the build configuration and resume'
+        onTimeout: 'resume'
+        failOnTimeout: true # fail the build if the validation times out
+      condition: succeededOrFailed() # continue the pipeline if the validation fails
+      continueOnError: true # continue the pipeline if there's an error during the validation
 
 - stage: 'DeployOnProd'
   displayName: 'Deploy on Prod and delete Canary'
@@ -182,7 +198,7 @@ stages:
       kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
       namespace: 'prod'
       command: 'delete'
-      arguments: '-f $(System.DefaultWorkingDirectory)/kubernetes/prod/deploy_app.yml'
+      arguments: manifest/vote-app.yml
 
     - task: Kubernetes@1
       name: deployprod
@@ -192,7 +208,7 @@ stages:
       namespace: 'prod'
       command: 'apply'
       useConfigurationFile: true
-      configuration: '$(System.DefaultWorkingDirectory)/kubernetes/prod/deploy_app.yml'
+      configuration: manifest/vote-app.yml
 
     - task: Bash@3
       name: yourdeployment
@@ -219,17 +235,17 @@ stages:
         namespace: 'prod'
         command: 'get'
         useConfigurationFile: true
-        configuration: '$(System.DefaultWorkingDirectory)/kubernetes/prod/deploy_app.yml'
-        name: prodpods
+        configuration: manifest/vote-app.yml
+        name: onprod
 
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: |
-          PRODPODS_KUBECTLOUTPUT=$(echo $(prodpods.KubernetesCliOutput) | tr -d '\r')
-          prodpodcount=$(echo $PRODPODS_KUBECTLOUTPUT | jq '.items | length')
-          echo "Total number of production pods: $prodpodcount"
-          if [ "$prodpodcount" -eq "0" ]; then
+          ONPROD_OUTPUT=$(echo $(onprod.KubernetesCliOutput) | tr -d '\r')
+          podcount=$(echo $ONPROD_OUTPUT | jq '.items | length')
+          echo "Total number of production pods: $podcount"
+          if [ "$podcount" -eq "0" ]; then
             echo "Error: No production pods found"
             exit 1
           fi"
