@@ -1,4 +1,4 @@
-# Voici la procédure pour lancer la pipeline de déploiement de l'application de vote dans Azure DevOps :
+# Voici la procédure pour lancer la pipeline dans Azure DevOps :
 
 ## Pré-requis :
 
