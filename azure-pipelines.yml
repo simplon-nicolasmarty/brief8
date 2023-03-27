@@ -9,15 +9,17 @@ variables:
   imageRepository: k8b8nm
   containerRegistry: nemesys34
   repository: nemesys34/k8b8nm
-  kubernetesServiceEndpoint: connectK8SNM
+  kubernetesServiceEndpoint: connectK8SNM2
   aksClusterName: K8B8NM
 
 stages:
 - stage: docker
+  displayName: Docker Build and Push
   jobs:
   - job: BuildAndPush
     displayName: Build and push
     steps:
+    # Récupération des déploiements du cluster
     - task: Kubernetes@1
       inputs:
         connectionType: Kubernetes Service Connection
@@ -25,10 +27,9 @@ stages:
         namespace: qal
         command: get
         arguments: deployments
-        secretType: dockerRegistry
-        containerRegistryType: Azure Container Registry
-      name: kube
+      displayName: Get Deployments
 
+    # Mise à jour des versions
     - task: Bash@3
       inputs:
         targetType: inline
@@ -41,6 +42,7 @@ stages:
           sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
       displayName: Mise à jour des versions
 
+    # Construction et publication de l'image Docker
     - task: Docker@2
       inputs:
         containerRegistry: $(dockerRegistryServiceConnection)
@@ -60,6 +62,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
+    # Déploiement des ressources sur QAL
     - task: KubernetesManifest@0
       displayName: Deploy resources on QAL
       inputs:
@@ -68,12 +71,14 @@ stages:
         namespace: 'qal'
         manifests: manifest/vote-app.yml
 
+    # Attendre 30 secondes pour que le déploiement soit effectif
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: 'sleep 30'
       displayName: Wait for deployment
 
+    # Vérifier le statut du déploiement
     - task: Bash@3
       inputs:
         targetType: 'inline'
@@ -82,18 +87,21 @@ stages:
           echo "##vso[task.setvariable variable=exit]$exitcode"
       displayName: Check deployment status
 
-    - task: CmdLine@2
+    # Test de charge
+    - task: CmdLine
       condition: eq(variables['exit'], '200')
       inputs:
         script: |
           seq 250 | parallel --max-args 0  --jobs 20 "curl -k -iF 'vote=free' http://brief8.uncia.fr"
       displayName: Load testing
 
+    # Attendre 30 secondes pour que les résultats des tests de charge soient disponibles
     - task: CmdLine@2
       inputs :
         script: 'sleep 30'
       displayName: Wait for load test results
 
+    # Récupérer les pods QAL
     - task: Kubernetes@1
       inputs:
         connectionType: Kubernetes Service Connection
@@ -104,6 +112,7 @@ stages:
       displayName: Get QAL pods
       name: qalpods
 
+    # Compter les pods
     - task: Bash@3
       inputs:
         targetType: 'inline'
@@ -113,6 +122,7 @@ stages:
           echo "##vso[task.setvariable variable=countpods]$pod_count"
       displayName: Count pods
 
+    # Supprimer le déploiement QAL si le nombre de pods n'est pas égal à 2
     - task: Kubernetes@1
       name: deleteqal
       condition: ne(variables['countpods'], 2)
@@ -124,6 +134,7 @@ stages:
         arguments: -f manifest/vote-app.yml
       displayName: Delete QAL deployment if pod count not equal to 2
 
+    # Afficher un message si la suppression de QAL a été effectuée
     - task: Bash@3
       name: yourverygood
       condition: succeeded()
