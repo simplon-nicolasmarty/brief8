@@ -9,7 +9,7 @@ variables:
   imageRepository: k8b8nm
   containerRegistry: nemesys34
   repository: nemesys34/k8b8nm
-  kubernetesServiceEndpoint: connectK8SNM2
+  kubernetesServiceEndpoint: connectK8SNM
   aksClusterName: K8B8NM
 
 stages:
