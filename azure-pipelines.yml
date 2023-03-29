@@ -36,10 +36,11 @@ stages:
           versionrep=$(curl -sS "https://hub.docker.com/v2/repositories/$(imageRepository)/tags" | jq -r '."results"[0]["name"]')
           versionold=$(echo $KUBE_KUBECTLOUTPUT | jq '.items[1].spec.template.spec.containers[].image' | cut -d: -f2 | sed 's/"//')
           versionnew=$(awk -F\" '/^ver = "[0-9.]+"/{print $2}' azure-vote/main.py)
-          echo "##vso[task.setvariable variable=vernew]$versionnew"
-          echo "##vso[task.setvariable variable=verrep]$versionrep"
+          echo "##vso[task.setvariable variable=vernew;isOutput=true]$versionnew"
+          echo "##vso[task.setvariable variable=verrep;isOutput=true]$versionrep"
           sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
       displayName: Mise à jour des versions
+      name: "scriptver"
 
     - task: Docker@2
       inputs:
@@ -52,6 +53,11 @@ stages:
       displayName: Build et Push
 
 - stage: QAL_Deployment
+  variables:
+    verrep: $[ stageDependencies.docker.BuildAndPushs.outputs['scriptver.verrep'] ]
+    vernew: $[ stageDependencies.docker.BuildAndPush.outputs['scriptver.vernew'] ]
+  dependsOn:
+  - docker
   condition: succeeded()
   displayName: Deploy on QAL
   jobs:
@@ -60,6 +66,11 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
+    - task: CmdLine@2
+      name: modif_manif
+      inputs:
+        script: |
+          sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
     - task: KubernetesManifest@0
       displayName: Deploy resources on QAL
       inputs:
@@ -136,21 +147,31 @@ stages:
   displayName: 'Deploy Canary Release'
   jobs:
   - job: 'Deploy_canary'
+    variables:
+      verrep: $[ stageDependencies.docker.BuildAndPushs.outputs['scriptver.verrep'] ]
+      vernew: $[ stageDependencies.docker.BuildAndPush.outputs['scriptver.vernew'] ]
+    dependsOn:
+    - docker
     displayName: 'Deployment of Canary Release'
     pool:
      vmImage: 'ubuntu-latest'
     steps:
-      - task: KubernetesManifest@0
-        name: kubeonprodcanary
-        condition: succeeded()
-        displayName: Deploy Canary on Prod
-        inputs:
-          action: 'deploy'
-          kubernetesServiceConnection: $(kubernetesServiceEndpoint)
-          namespace: 'prod'
-          strategy: 'canary'
-          percentage: '30'
-          manifests: manifest/vote-app.yml
+    - task: CmdLine@2
+      name: modif_manif
+      inputs:
+        script: |
+          sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
+    - task: KubernetesManifest@0
+      name: kubeonprodcanary
+      condition: succeeded()
+      displayName: Deploy Canary on Prod
+      inputs:
+        action: 'deploy'
+        kubernetesServiceConnection: $(kubernetesServiceEndpoint)
+        namespace: 'prod'
+        strategy: 'canary'
+        percentage: '30'
+        manifests: manifest/vote-app.yml
 
 
 - stage: 'ManualIntervention'
@@ -180,6 +201,11 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
+    - task: CmdLine@2
+      name: modif_manif
+      inputs:
+        script: |
+          sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
     - task: Kubernetes@1
       name: deleteprodapp
       inputs:
