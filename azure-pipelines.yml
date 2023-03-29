@@ -1,5 +1,5 @@
 trigger:
-- master
+  - master
 
 pool:
   vmImage: ubuntu-latest
@@ -9,17 +9,15 @@ variables:
   imageRepository: k8b8nm
   containerRegistry: nemesys34
   repository: nemesys34/k8b8nm
-  kubernetesServiceEndpoint: connectK8SNM2
+  kubernetesServiceEndpoint: connectK8SNM
   aksClusterName: K8B8NM
 
 stages:
 - stage: docker
-  displayName: Docker Build and Push
   jobs:
   - job: BuildAndPush
     displayName: Build and push
     steps:
-    # Récupération des déploiements du cluster
     - task: Kubernetes@1
       inputs:
         connectionType: Kubernetes Service Connection
@@ -27,9 +25,10 @@ stages:
         namespace: qal
         command: get
         arguments: deployments
-      displayName: Get Deployments
+        secretType: dockerRegistry
+        containerRegistryType: Azure Container Registry
+      name: kube
 
-    # Mise à jour des versions
     - task: Bash@3
       inputs:
         targetType: inline
@@ -42,7 +41,6 @@ stages:
           sed -i 's/{{ version }}/'$versionnew'/g' manifest/vote-app.yml
       displayName: Mise à jour des versions
 
-    # Construction et publication de l'image Docker
     - task: Docker@2
       inputs:
         containerRegistry: $(dockerRegistryServiceConnection)
@@ -62,7 +60,6 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    # Déploiement des ressources sur QAL
     - task: KubernetesManifest@0
       displayName: Deploy resources on QAL
       inputs:
@@ -70,55 +67,33 @@ stages:
         kubernetesServiceConnection: $(kubernetesServiceEndpoint)
         namespace: 'qal'
         manifests: manifest/vote-app.yml
-    # Attendre 30 secondes pour que le déploiement soit effectif
+
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: 'sleep 30'
       displayName: Wait for deployment
 
-    # Vérifier le statut du déploiement
     - task: Bash@3
-      condition: succeeded()
       inputs:
         targetType: 'inline'
         script: |
-          exitcode=$(curl -X POST -d "vote=Linux" http://brief8.uncia.fr -w "%{http_code}" -o /dev/null)
+          exitcode=$(curl -s -o -I -w "%{http_code}" http://brief8.uncia.fr)
           echo "##vso[task.setvariable variable=exit]$exitcode"
-      displayName: Test vote Linux
+      displayName: Check deployment status
 
-    # Test de charge
-    - task: Bash@3
-      condition: eq(variables['exit1'], '200')
-      inputs:
-        targetType: 'inline'
-        script: |
-          exitcode=$(curl -X POST -d "vote=Windows" http://brief8.uncia.fr -w "%{http_code}" -o /dev/null)
-          echo "##vso[task.setvariable variable=exit2]$exitcode"
-      displayName: Test vote Windows
-    - task: Bash@3
-      name : resettest
-      displayName: Test de reset
-      condition: eq(variables['exit2'],'200')
-      inputs:
-        targetType: 'inline'
-        script: |
-          exitcode=$(curl -X POST -d "vote=reset" http://brief8.uncia.fr -w "%{http_code}" -o /dev/null)
-          echo "##vso[task.setvariable variable=exit3]$exitcode"
     - task: CmdLine@2
-      name : chargetest
-      displayName: Test de charge de la qal
-      condition: eq(variables['exit3'],'200')
+      condition: eq(variables['exit'], '200')
       inputs:
         script: |
-          seq 250 | parallel --max-args 0  --jobs 20 "curl -k -iF 'vote=Linux' http://brief8.uncia.fr"
-    # Attendre 90 secondes pour que les résultats des tests de charge soient disponibles
+          seq 250 | parallel --max-args 0  --jobs 20 "curl -k -iF 'vote=free' http://brief8.uncia.fr"
+      displayName: Load testing
+
     - task: CmdLine@2
       inputs :
-        script: 'sleep 90'
+        script: 'sleep 30'
       displayName: Wait for load test results
 
-    # Récupérer les pods QAL
     - task: Kubernetes@1
       inputs:
         connectionType: Kubernetes Service Connection
@@ -129,7 +104,6 @@ stages:
       displayName: Get QAL pods
       name: qalpods
 
-    # Compter les pods
     - task: Bash@3
       inputs:
         targetType: 'inline'
@@ -139,7 +113,6 @@ stages:
           echo "##vso[task.setvariable variable=countpods]$pod_count"
       displayName: Count pods
 
-    # Supprimer le déploiement QAL si le nombre de pods n'est pas égal à 2
     - task: Kubernetes@1
       name: deleteqal
       condition: ne(variables['countpods'], 2)
@@ -151,7 +124,6 @@ stages:
         arguments: -f manifest/vote-app.yml
       displayName: Delete QAL deployment if pod count not equal to 2
 
-    # Afficher un message si la suppression de QAL a été effectuée
     - task: Bash@3
       name: yourverygood
       condition: succeeded()
@@ -164,33 +136,30 @@ stages:
   displayName: 'Deploy Canary Release'
   jobs:
   - job: 'Deploy_canary'
+    displayName: 'Deployment of Canary Release'
     pool:
-      vmImage: 'ubuntu-latest'
+     vmImage: 'ubuntu-latest'
     steps:
-    - task: KubernetesManifest@0
-      name: kubeonprodcanary
-      condition: succeeded()
-      inputs:
-        action: 'deploy'
-        kubernetesServiceConnection: $(kubernetesServiceEndpoint)
-        namespace: 'prod'
-        strategy: 'canary'
-        percentage: '30'
-        manifests: manifest/vote-app.yml
-      displayName: Deploy Canary on Prod
+      - task: KubernetesManifest@0
+        name: kubeonprodcanary
+        condition: succeeded()
+        displayName: Deploy Canary on Prod
+        inputs:
+          action: 'deploy'
+          kubernetesServiceConnection: $(kubernetesServiceEndpoint)
+          namespace: 'prod'
+          strategy: 'canary'
+          percentage: '30'
+          manifests: manifest/vote-app.yml
 
-- stage: 'Manual Intervention'
-  displayName: 'Wait for validation of working canary release'
-  condition: |
-    and(
-    eq(variables['Release.EnvironmentName'], 'canary'),
-    eq(variables['Release.Reason'], 'Manual')
-    )
+
+- stage: 'ManualIntervention'
+  condition: succeeded() 
+  displayName: 'In waiting of validation of working canary release' 
   jobs:
   - job: 'waitForValidation'
     displayName: 'Wait for external validation before proceeding'
-    pool:
-      vmImage: 'ubuntu-latest'
+    pool: server
     timeoutInMinutes: 4320 # job times out in 3 days
     steps:
     - task: ManualValidation@0
@@ -200,8 +169,8 @@ stages:
         instructions: 'Please validate the build configuration and resume'
         onTimeout: 'resume'
         failOnTimeout: true # fail the build if the validation times out
-        condition: succeededOrFailed() # continue the pipeline if the validation fails
-        continueOnError: true # continue the pipeline if there's an error during the validation
+      condition: succeededOrFailed() # continue the pipeline if the validation fails
+      continueOnError: true # continue the pipeline if there's an error during the validation
 
 - stage: 'DeployOnProd'
   displayName: 'Deploy on Prod and delete Canary'
@@ -219,10 +188,10 @@ stages:
         namespace: 'prod'
         command: 'delete'
         arguments: manifest/vote-app.yml
+      displayName: Delete Canary from Prod
 
     - task: Kubernetes@1
       name: deployprod
-      condition: succeeded()
       inputs:
         connectionType: 'Kubernetes Service Connection'
         kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
@@ -245,10 +214,13 @@ stages:
   displayName: 'Performance Test on Prod'
   jobs:
   - job: 'PerformanceTest'
+    displayName: 'Performance Test on Prod'
     pool:
-      vmImage: 'ubuntu-latest'
+     vmImage: 'ubuntu-latest'
     steps:
     - task: Kubernetes@1
+      displayName: Get Prod deployment
+      name: onprod
       inputs:
         connectionType: Kubernetes Service Connection
         kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
@@ -256,7 +228,6 @@ stages:
         command: 'get'
         useConfigurationFile: true
         configuration: manifest/vote-app.yml
-      displayName: Get Prod deployment
 
     - task: Bash@3
       inputs:
@@ -275,7 +246,7 @@ stages:
       inputs:
         targetType: 'inline'
         script: 'sleep 30'
-      displayName: Wait for load test results
+        displayName: Wait for load test results
 
     - task: CmdLine@2
       inputs:
