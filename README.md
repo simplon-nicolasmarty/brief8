@@ -54,3 +54,23 @@ provided by the bot. You will only need to do this once across all repos using o
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+---
+# Explications de fonctionnement du pipeline
+
+Ce pipeline Azure DevOps est configuré pour déployer une application sur un cluster Kubernetes. Il est composé de plusieurs étapes pour construire et déployer l'application, effectuer des tests de performance, et potentiellement effectuer un rollback en cas d'échec des tests.
+
+    Étape "docker" : Cette étape construit et pousse une image Docker contenant l'application vers un registre Docker. Elle récupère les versions actuelles et précédentes de l'image, met à jour le fichier de manifeste Kubernetes avec la nouvelle version, puis construit et pousse l'image si la nouvelle version est différente de l'ancienne.
+
+    Étape "QAL_Deployment" : Cette étape déploie l'application sur un environnement de qualité (QAL). Elle vérifie le déploiement, effectue des tests de charge et compte le nombre de pods déployés. Si le nombre de pods n'est pas égal à 2, le déploiement QAL est supprimé.
+
+    Étape "Deploy_canary" : Cette étape déploie une version Canary de l'application dans l'environnement de production (Prod) avec 30 % du trafic dirigé vers cette version. Cette étape permet de vérifier que la nouvelle version fonctionne correctement avec un sous-ensemble d'utilisateurs avant de la déployer complètement.
+
+    Étape "ManualIntervention" : Cette étape attend une validation manuelle avant de poursuivre. Un utilisateur doit confirmer que la configuration est correcte et que le pipeline peut continuer.
+
+    Étape "DeployOnProd" : Cette étape déploie l'application sur l'environnement de production et supprime la version Canary. Si le déploiement réussit, un message indiquant que le déploiement en production est OK est affiché.
+
+    Étape "PerformanceTest" : Cette étape effectue des tests de performance sur l'environnement de production. Elle vérifie le nombre de pods de production, attend les résultats des tests de charge et affiche un message indiquant que les tests de performance sont terminés.
+
+    Étape "Rollback" : Cette étape est exécutée uniquement si les tests de performance échouent. Elle effectue un rollback du déploiement en production à la version précédente et affiche un message indiquant que le rollback est terminé.
+
+Le pipeline utilise plusieurs tâches pour interagir avec Kubernetes, gérer les images Docker, exécuter des scripts Bash et des commandes en ligne, et attendre une intervention manuelle. 
